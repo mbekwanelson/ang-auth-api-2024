@@ -1,10 +1,13 @@
 ﻿using ang_auth_api_2024.Context;
+using ang_auth_api_2024.Helpers;
 using ang_auth_api_2024.Helpers.HelperModels;
 using ang_auth_api_2024.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace ang_auth_api_2024.Controllers
 {
@@ -82,9 +85,9 @@ namespace ang_auth_api_2024.Controllers
                     };
                 }
 
-                var existingUsr = await _appDbContext.Users.FirstOrDefaultAsync(x => x.UserName == userObj.UserName);
-
-                if (existingUsr != null)
+                //check user Name
+                
+                if (checkIfUserNameExists(userObj.UserName).Result)
                 {
                     return new ResponseMessage<UserDto>()
                     {
@@ -95,6 +98,35 @@ namespace ang_auth_api_2024.Controllers
                     };
                 }
 
+                // check Email
+                if (checkIfEmailExists(userObj.Email).Result)
+                {
+                    return new ResponseMessage<UserDto>()
+                    {
+                        data = new UserDto() { Id = userObj.Id, UserName = userObj.UserName, Email = userObj.Email },
+                        Message = "Email is already taken",
+                        StatusCode = StatusCodes.Status401Unauthorized,
+                        success = false
+                    };
+                }
+
+                //check for Password Strength
+                var passStrengthChecks = checkPasswordStrength(userObj.Password);
+                if(!string.IsNullOrEmpty(passStrengthChecks.Result))
+                    return new ResponseMessage<UserDto>()
+                    {
+                        data = new UserDto() { Id = userObj.Id, UserName = userObj.UserName, Email = userObj.Email },
+                        Message = passStrengthChecks.Result,
+                        StatusCode = StatusCodes.Status401Unauthorized,
+                        success = false
+                    };
+
+
+
+
+                userObj.Password = PasswordHasher.HashPassword(userObj.Password);
+                userObj.Role = "User";
+                userObj.Token = "";
                 await _appDbContext.Users.AddAsync(new Models.User
                 {
                     FirstName = userObj.FirstName,
@@ -142,6 +174,34 @@ namespace ang_auth_api_2024.Controllers
             
             }
             
+        }
+
+        private  Task<bool> checkIfUserNameExists(string username) 
+            =>  _appDbContext.Users.AnyAsync(x => x.UserName == username);
+
+        private Task<bool> checkIfEmailExists(string email)
+           => _appDbContext.Users.AnyAsync(x => x.Email == email);
+
+        private Task<string> checkPasswordStrength(string password) 
+        {
+
+            StringBuilder sb = new StringBuilder();
+            if(password.Length < 8) 
+                sb.Append("Minimum Password length should be 8"+ Environment.NewLine);
+            
+
+            if( !(Regex.IsMatch(password,"[a-z]")  && 
+                Regex.IsMatch(password, "[A-Z]")  &&
+                Regex.IsMatch(password,"[0-9]"))
+             ) 
+                sb.Append("Password should be Alphanumeric" + Environment.NewLine);
+            
+
+            if (!Regex.IsMatch(password, "[<,>,@,!,#,$,%,^,&,*,(,),_,+,\\[,\\],{,},?,:,;,|,',\\,.,/,~,`,-,=]")) 
+                sb.Append("Password Should contain at least one special character" + Environment.NewLine);
+
+            return Task.FromResult(sb.ToString());
+ 
         }
     }
 }
