@@ -5,7 +5,10 @@ using ang_auth_api_2024.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 using System.Runtime.CompilerServices;
+using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -16,9 +19,11 @@ namespace ang_auth_api_2024.Controllers
     public class UserController : ControllerBase
     {
         private readonly AppDbContext _appDbContext;
-        public UserController(AppDbContext appDbContext)
+        private readonly IConfiguration _config;
+        public UserController(AppDbContext appDbContext, IConfiguration configuration)
         {
             _appDbContext = appDbContext;
+            _config = configuration;
 
         }
 
@@ -34,19 +39,33 @@ namespace ang_auth_api_2024.Controllers
                 StatusCode = 500
             };
 
-            var user = await _appDbContext.Users.FirstOrDefaultAsync(x => x.UserName == userObj.UserName && x.Password == userObj.Password);
+            var user = await _appDbContext.Users.FirstOrDefaultAsync(x => x.UserName == userObj.UserName);
             if (user == null)
             {
                 return new ResponseMessage<UserDto>() 
                 {
                     data = userObj,
-                    Message = $"Incorrect Username: {userObj.UserName} /Password : {userObj.Password}",
+                    Message = $"Incorrect Username: {userObj.UserName} Not found",
                     success =  false,
                     StatusCode = 500
                 };
             }
 
+            if (!PasswordHasher.VerifyPassword(userObj.Password, user.Password)) 
+            {
+                return new ResponseMessage<UserDto>()
+                {
+                    data = userObj,
+                    Message = $"Incorrect Password : {userObj.UserName} Not found",
+                    success = false,
+                    StatusCode = 500
+                };
+
+            }
+
+            user.Token = CreateJWT(userObj);
             userObj.Id = user.Id;
+            userObj.Token = user.Token;
             return new ResponseMessage<UserDto>() 
             { 
                    data = userObj,
@@ -202,6 +221,33 @@ namespace ang_auth_api_2024.Controllers
 
             return Task.FromResult(sb.ToString());
  
+        }
+
+        private string CreateJWT(UserDto user)
+        {
+
+            var jwtTokenHandler = new JwtSecurityTokenHandler();
+            var jwtSecretSigningKey = _config["JwtSecrets:SecretSigningKey"];
+            var key = Encoding.ASCII.GetBytes(jwtSecretSigningKey);
+            var identity = new ClaimsIdentity(new Claim[]
+            {
+                new Claim(ClaimTypes.Role, user.Role),
+                new Claim(ClaimTypes.Name,$"{user.FirstName}.{user.LastName}")
+
+            });
+
+            var credentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256);
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = identity,
+                Expires = DateTime.Now.AddDays(1),
+                SigningCredentials = credentials
+
+            };
+
+            var token = jwtTokenHandler.CreateToken(tokenDescriptor);
+            return jwtTokenHandler.WriteToken(token);
         }
     }
 }

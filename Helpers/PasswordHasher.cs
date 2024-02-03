@@ -1,6 +1,11 @@
-﻿using Microsoft.Extensions.Diagnostics.HealthChecks;
+﻿using ang_auth_api_2024.Helpers.HelperModels;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 using System.Reflection.Metadata;
+using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace ang_auth_api_2024.Helpers
 {
@@ -47,9 +52,6 @@ namespace ang_auth_api_2024.Helpers
                 
             }
             return true;
-
-
         }
-
     }
 }

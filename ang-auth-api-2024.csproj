@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ang_auth_api_2024</RootNamespace>
+    <UserSecretsId>e7b4abf8-6fb1-4e35-88a2-f04218eae4c0</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
